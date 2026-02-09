@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Temp Images</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .small {
+            font-size: 10px;
+            overflow: hidden;
+        }
+        .large-label {
+            font-size: 32px;
+        }
+        .dropdown-menu {
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+    </style>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+
+            // Now that the DOM is ready, we can find the items
+            document.querySelectorAll('.dropdown-item').forEach(item => {
+                item.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    
+                    const value = this.getAttribute('data-value');
+                    const content = this.innerHTML;
+                    document.getElementById('dropdown-image').innerHTML = content;
+                    
+                    // Update the hidden input
+                    const hiddenInput = document.getElementById('selected-value');
+                    if (hiddenInput) {
+                        hiddenInput.value = value;
+                    }
+                    
+                    // Active class toggle
+                    document.querySelectorAll('.dropdown-item').forEach(el => el.classList.remove('active'));
+                    this.classList.add('active');
+                });
+            });
+
+            // Target all images within your card containers
+            document.querySelectorAll('.image-container img').forEach(img => {
+                img.style.cursor = 'pointer'; // Make it obvious it's clickable
+                
+                img.addEventListener('click', function() {
+                    // Find the checkbox within the same container
+                    const card = this.closest('.image-container');
+                    const checkbox = card.querySelector('.form-check-input');
+                    
+                    // Toggle the checkbox state
+                    checkbox.checked = !checkbox.checked;
+                    
+                    // Optional: Trigger a 'change' event in case other code is listening
+                    checkbox.dispatchEvent(new Event('change'));
+                    
+                    // Visual feedback: toggle a border or highlight
+                    if (checkbox.checked) {
+                        card.querySelector('.card').classList.add('border-primary', 'bg-light');
+                    } else {
+                        card.querySelector('.card').classList.remove('border-primary', 'bg-light');
+                    }
+                });
+            });
+
+            document.querySelector('#move-button').addEventListener('click', function() {
+                const selected = getSelectedImages();
+                const destination = document.getElementById('selected-value').value;
+
+                if (selected.length === 0) {
+                    alert("Please select at least one image.");
+                    return;
+                }
+
+                if (!destination) {
+                    alert("Please select a character from the dropdown.");
+                    return;
+                }
+
+                removeCheckedImagesAndResetDropdown();
+
+                // Example: Sending the data via Fetch
+                fetch('/move-images', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        selected_images: selected,
+                        destination: destination
+                    })
+                }).then(response => {
+                    // Check if the server returned a 200-299 status
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json(); // This parses the dictionary you sent from Python
+                }).then(data => {
+                    console.log(data);
+                })
+            });
+        });
+
+        function getSelectedImages() {
+            // Select all checkboxes with that name that are currently checked
+            const checkboxes = document.querySelectorAll('input[name="selected_images"]:checked');
+            // Extract the values into an array
+            const values = Array.from(checkboxes).map(cb => cb.value);
+            return values;
+        }
+
+        function removeCheckedImagesAndResetDropdown() {
+            // Find all checked checkboxes
+            const checkedBoxes = document.querySelectorAll('input[name="selected_images"]:checked');
+
+            checkedBoxes.forEach(cb => {
+                // Find the closest ancestor with the class 'image-container'
+                const container = cb.closest('.image-container');
+                if (container) {
+                    // Option A: Just hide it
+                    container.style.display = 'none';
+                    
+                    // Option B: (Cleaner) Remove it from the DOM entirely
+                    // container.remove();
+                }
+            });
+
+            // Optional: Reset the dropdown label
+            document.getElementById('dropdown-image').innerText = "Select Character";
+            document.getElementById('selected-value').value = "";
+        }
+    </script>
+</head>
+<body>
+
+<div class="sticky-top bg-light border-bottom py-3 mb-4">
+    <div class="container d-flex justify-content-between align-items-center">
+        <h1 class="mb-0">Ungrouped</h1>
+
+        <div class="d-flex gap-2">
+            <div class="dropdown">
+                <button class="btn btn-outline-secondary dropdown-toggle large-label" type="button" data-bs-toggle="dropdown" id="dropdown-image">
+                    Select Character
+                </button>
+
+                <ul class="dropdown-menu">
+                    {% for img in syllables %}
+                        <li>
+                            <a class="dropdown-item d-flex align-items-center gap-2" href="#" data-value="{{ img }}">
+                                <img src="{{ url_for('static', filename='dropdown_images/' + img) }}_1.png" height="65">
+                                <img src="{{ url_for('static', filename='dropdown_images/' + img) }}_2.png" height="65">
+                                <img src="{{ url_for('static', filename='dropdown_images/' + img) }}_3.png" height="65">
+                                <span class="large-label">{{ img }}</span>
+                            </a>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            <input type="hidden" name="syllable_value" id="selected-value">
+            <button type="button" class="btn btn-primary large-label" id="move-button">
+                Move Images
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="container py-4">
+    <form method="post" action="/submit">
+        <div class="row g-3">
+            {% for img in images %}
+                <div class="col-12 col-sm-4 col-md-3 col-lg-2 image-container">
+                    <div class="card h-100">
+                        <img 
+                            src="{{ url_for('static', filename='temp_images/' + img) }}" 
+                            class="card-img-top img-fluid"
+                            alt="{{ img }}"
+                        >
+                        <div class="card-body text-center p-2">
+                            <div class="form-check">
+                                <input 
+                                    class="form-check-input" 
+                                    type="checkbox" 
+                                    name="selected_images" 
+                                    value="{{ img }}" 
+                                    id="chk_{{ loop.index }}"
+                                >
+                                <label class="form-check-label small" for="chk_{{ loop.index }}">
+                                    {{ img }}
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </form>
+</div>
+
+<!-- Bootstrap 5.3 JS (optional, not required for this page) -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+</body>
+</html>
